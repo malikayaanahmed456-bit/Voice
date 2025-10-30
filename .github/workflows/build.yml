@@ -1,4 +1,4 @@
-name: Urdu voice AI
+name: Build Android APK (Docker Buildozer)
 
 on:
   push:
@@ -7,34 +7,78 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # optional: set ORATOR_ENDPOINT if you want to override default
+      ORATOR_ENDPOINT: https://api.orator.ai/v1/generate
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip python3-setuptools
-          pip install buildozer kivy cython requests gradio
+      - name: Ensure workspace is writable
+        run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
 
-      - name: Initialize Buildozer
+      - name: Inject secret API key into main.py (safe - from Actions secret)
+        if: ${{ secrets.ORATOR_API_KEY != '' }}
         run: |
-          yes | buildozer init
-          sed -i 's/title = My Application/title = Urdu AI Orator/' buildozer.spec
-          sed -i 's/package.name = myapp/package.name = urduaiorator/' buildozer.spec
-          sed -i 's/package.domain = org.test/package.domain = com.malik/' buildozer.spec
-          echo "requirements = python3,kivy,gradio,requests" >> buildozer.spec
-          echo "android.api = 33" >> buildozer.spec
-          echo "android.minapi = 21" >> buildozer.spec
-          echo "android.permissions = INTERNET" >> buildozer.spec
+          python - <<'PY'
+import os,io,re
+p='main.py'
+s=open(p,'r',encoding='utf-8').read()
+# Replace placeholder PUT_YOUR_KEY_HERE or placeholder SK_... with secret
+apikey=os.environ.get('ORATOR_API_KEY')
+if not apikey:
+  print("No ORATOR_API_KEY provided")
+else:
+  s = re.sub(r'ORATOR_API_KEY\s*=\s*[\'"].*[\'"]', f'ORATOR_API_KEY = \"{apikey}\"', s)
+  open(p,'w',encoding='utf-8').write(s)
+  print("Injected ORATOR_API_KEY into main.py")
+PY
+        env:
+          ORATOR_API_KEY: ${{ secrets.ORATOR_API_KEY }}
 
-      - name: Build APK
+      - name: Create/ensure buildozer.spec (safe defaults)
         run: |
-          yes | buildozer -v android debug
+          if [ ! -f buildozer.spec ]; then
+            cat > buildozer.spec <<'SPEC'
+[app]
+title = Urdu AI Orator
+package.name = urduaiorator
+package.domain = org.orator
+source.dir = .
+source.include_exts = py,png,jpg,kv,atlas
+version = 1.0
+requirements = python3,kivy,requests,gradio
+orientation = portrait
+fullscreen = 0
+android.permissions = INTERNET
+# avoid modifying SDK/NDK paths here - Docker image contains them
+SPEC
+          else
+            echo "buildozer.spec already exists, leaving it."
+          fi
+
+      - name: Pull Kivy/Buildozer Docker image
+        run: docker pull kivy/buildozer:latest
+
+      - name: Run Buildozer inside Docker (builds APK)
+        run: |
+          docker run --rm \
+            -e ANDROIDAPI=33 \
+            -e ANDROIDNDKVER=25b \
+            -v "${{ github.workspace }}":/home/kivy/hostcwd \
+            -w /home/kivy/hostcwd \
+            kivy/buildozer:latest \
+            /bin/bash -lc "yes | buildozer -v android debug"
+        timeout-minutes: 60
+
+      - name: List generated files (debug)
+        run: ls -la || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Urdu_AI_Orator_APK
-          path: /home/runner/work/**/bin/*.apk
+          path: |
+            bin/*.apk
+            bin/*/*.apk

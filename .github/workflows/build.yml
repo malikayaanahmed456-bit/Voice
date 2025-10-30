@@ -1,4 +1,4 @@
-name: Android APK Builder (Stable 2025)
+name: Android APK Builder (Docker Buildozer)
 
 on:
   push:
@@ -7,11 +7,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Prepare workspace
+      - name: Ensure workspace ownership
         run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
 
       - name: Create default buildozer.spec if missing
@@ -33,6 +34,8 @@ android.permissions = INTERNET
 log_level = 2
 warn_on_root = 0
 SPEC
+          else
+            echo "buildozer.spec already exists, keeping it."
           fi
 
       - name: Pull Kivy Buildozer Docker image
@@ -44,10 +47,13 @@ SPEC
             -v "${{ github.workspace }}":/home/kivy/hostcwd \
             -w /home/kivy/hostcwd \
             kivy/buildozer:latest \
-            /bin/bash -c "buildozer android debug"
-        timeout-minutes: 45
+            /bin/bash -c "yes | buildozer -v android debug"
+        timeout-minutes: 60
 
-      - name: Upload built APK
+      - name: List repository files (for debug)
+        run: ls -la
+
+      - name: Upload built APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Urdu_AI_Orator_APK

@@ -1,4 +1,4 @@
-name: Build Android APK (Docker Buildozer)
+name: Android APK Builder (Stable 2025)
 
 on:
   push:
@@ -7,75 +7,47 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      # optional: set ORATOR_ENDPOINT if you want to override default
-      ORATOR_ENDPOINT: https://api.orator.ai/v1/generate
-
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Ensure workspace is writable
+      - name: Prepare workspace
         run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
 
-      - name: Inject secret API key into main.py (safe - from Actions secret)
-        if: ${{ secrets.ORATOR_API_KEY != '' }}
-        run: |
-          python - <<'PY'
-import os,io,re
-p='main.py'
-s=open(p,'r',encoding='utf-8').read()
-# Replace placeholder PUT_YOUR_KEY_HERE or placeholder SK_... with secret
-apikey=os.environ.get('ORATOR_API_KEY')
-if not apikey:
-  print("No ORATOR_API_KEY provided")
-else:
-  s = re.sub(r'ORATOR_API_KEY\s*=\s*[\'"].*[\'"]', f'ORATOR_API_KEY = \"{apikey}\"', s)
-  open(p,'w',encoding='utf-8').write(s)
-  print("Injected ORATOR_API_KEY into main.py")
-PY
-        env:
-          ORATOR_API_KEY: ${{ secrets.ORATOR_API_KEY }}
-
-      - name: Create/ensure buildozer.spec (safe defaults)
+      - name: Create default buildozer.spec if missing
         run: |
           if [ ! -f buildozer.spec ]; then
             cat > buildozer.spec <<'SPEC'
 [app]
 title = Urdu AI Orator
 package.name = urduaiorator
-package.domain = org.orator
+package.domain = com.malik
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0
-requirements = python3,kivy,requests,gradio
+requirements = python3,kivy,requests
 orientation = portrait
 fullscreen = 0
 android.permissions = INTERNET
-# avoid modifying SDK/NDK paths here - Docker image contains them
+[buildozer]
+log_level = 2
+warn_on_root = 0
 SPEC
-          else
-            echo "buildozer.spec already exists, leaving it."
           fi
 
-      - name: Pull Kivy/Buildozer Docker image
+      - name: Pull Kivy Buildozer Docker image
         run: docker pull kivy/buildozer:latest
 
-      - name: Run Buildozer inside Docker (builds APK)
+      - name: Build APK inside container
         run: |
           docker run --rm \
-            -e ANDROIDAPI=33 \
-            -e ANDROIDNDKVER=25b \
             -v "${{ github.workspace }}":/home/kivy/hostcwd \
             -w /home/kivy/hostcwd \
             kivy/buildozer:latest \
-            /bin/bash -lc "yes | buildozer -v android debug"
-        timeout-minutes: 60
+            /bin/bash -c "buildozer android debug"
+        timeout-minutes: 45
 
-      - name: List generated files (debug)
-        run: ls -la || true
-
-      - name: Upload APK artifact
+      - name: Upload built APK
         uses: actions/upload-artifact@v4
         with:
           name: Urdu_AI_Orator_APK

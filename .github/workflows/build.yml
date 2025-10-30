@@ -1,4 +1,4 @@
-name: Build Urdu AI Orator APK
+name: urdu AI
 
 on:
   push:
@@ -8,36 +8,25 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.10"
-
-      - name: Install Buildozer
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip
-          pip install buildozer Cython==0.29.36 kivy==2.3.0
+          sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip python3-setuptools
+          pip install buildozer kivy cython
 
-      - name: Create buildozer.spec dynamically
+      - name: Initialize Buildozer
         run: |
-          echo "[app]" > buildozer.spec
-          echo "title = Urdu AI Orator" >> buildozer.spec
-          echo "package.name = urduaiorator" >> buildozer.spec
-          echo "package.domain = org.malik" >> buildozer.spec
-          echo "source.dir = ." >> buildozer.spec
-          echo "source.include_exts = py" >> buildozer.spec
-          echo "version = 1.0" >> buildozer.spec
-          echo "requirements = python3,kivy,requests" >> buildozer.spec
-          echo "orientation = portrait" >> buildozer.spec
-          echo "android.permissions = INTERNET" >> buildozer.spec
+          yes | buildozer init
+          sed -i 's/title = My Application/title = Urdu AI Orator/' buildozer.spec
+          sed -i 's/package.name = myapp/package.name = urduaiorator/' buildozer.spec
+          sed -i 's/package.domain = org.test/package.domain = com.malik/' buildozer.spec
+          echo "requirements = python3,kivy,gradio,requests" >> buildozer.spec
           echo "android.api = 33" >> buildozer.spec
           echo "android.minapi = 21" >> buildozer.spec
-          echo "android.sdk_path = /opt/android-sdk" >> buildozer.spec
-          echo "android.ndk_path = /opt/android-ndk" >> buildozer.spec
+          echo "android.permissions = INTERNET" >> buildozer.spec
 
       - name: Build APK
         run: |
@@ -47,4 +36,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: Urdu_AI_Orator_APK
-          path: bin/*.apk
+          path: /home/runner/work/**/bin/*.apk

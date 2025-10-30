@@ -10,7 +10,7 @@ from kivy.uix.textinput import TextInput
 import requests
 
 # 🔑 Replace with your Orator API key
-API_KEY = "PASTE-YOUR-ORATOR-API-KEY-HERE"
+API_KEY = "sk_api_49963a85a4e15093c348640290231870c321217215504d304dd2cb87d8fface8"
 API_URL = "https://api.orator.com/v1/generate"
 
 class UrduOratorLayout(BoxLayout):

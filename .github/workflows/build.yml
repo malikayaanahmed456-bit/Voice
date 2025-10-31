@@ -1,1 +1,63 @@
+name: Build Android APK
 
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    # Use a more stable and commonly used OS version for Buildozer, like ubuntu-20.04
+    runs-on: ubuntu-20.04 
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Add a step to set up Java, which is essential for Android development
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu' # A reliable distribution for this use case
+          java-version: '17'
+
+      # Install Python and dependencies, including 'pip' which might not be available directly as 'python3-pip' on all runners
+      - name: Install Buildozer dependencies
+        run: |
+          sudo apt-get update
+          # Install core build tools and JDK (even though setup-java is used, this ensures all tools are available)
+          sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip python3-setuptools libncurses5-dev
+          
+          # Install Python packages
+          pip install --upgrade pip
+          # Specify cython version to avoid potential compatibility issues
+          pip install buildozer kivy cython==0.29.33 requests gradio 
+
+      - name: Initialize Buildozer and Update Spec
+        run: |
+          # Use the 'yes' command piped to buildozer init to auto-accept defaults
+          yes | buildozer init
+          
+          # Use sed for spec file modifications
+          sed -i 's/title = My Application/title = Urdu AI Orator/' buildozer.spec
+          sed -i 's/package.name = myapp/package.name = urduaiorator/' buildozer.spec
+          sed -i 's/package.domain = org.test/package.domain = com.malik/' buildozer.spec
+          
+          # Append/update requirements and Android settings
+          echo "requirements = python3,kivy,gradio,requests" >> buildozer.spec
+          echo "android.api = 33" >> buildozer.spec
+          echo "android.minapi = 21" >> buildozer.spec
+          echo "android.permissions = INTERNET" >> buildozer.spec
+
+      - name: Build APK
+        run: |
+          # The 'yes' command piped to buildozer ensures licenses and other prompts are accepted automatically
+          yes | buildozer -v android debug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Urdu_AI_Orator_APK
+          # The correct path for the generated APK is typically relative to the project root, inside 'bin'.
+          # Using a wildcard in the path is common to handle the full, generated filename.
+          path: bin/*.apk 
+          
